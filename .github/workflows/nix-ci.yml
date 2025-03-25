@@ -11,8 +11,8 @@ jobs:
       - uses: cachix/install-nix-action@v25
       - name: Check Formatting
         run:
-          nix shell nixpkgs#nixfmt-rfc-style -c find . -name "*.nix" | xargs
-          nixfmt --strict --check
+          nix shell nixpkgs#nixfmt-rfc-style -c find . -name "*.nix" -exec
+          nixfmt --strict --check {} +
 
   lint:
     runs-on: ubuntu-latest
