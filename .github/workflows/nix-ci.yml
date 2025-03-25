@@ -1,0 +1,31 @@
+name: Nix CI
+
+on:
+  workflow_call:
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v25
+      - name: Check Formatting
+        run: nix shell nixpkgs#alejandra -c alejandra --check .
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v25
+      - name: Run statix
+        run: nix shell nixpkgs#statix -c statix check .
+      - name: Run nix-linter
+        run: nix shell nixpkgs#nix-linter -c nix-linter .
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v25
+      - name: Run nix flake check
+        run: nix flake check
