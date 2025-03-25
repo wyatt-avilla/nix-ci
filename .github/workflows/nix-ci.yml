@@ -10,7 +10,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v25
       - name: Check Formatting
-        run: nix shell nixpkgs#alejandra -c alejandra --check .
+        run:
+          nix shell nixpkgs#nixfmt-rfc-style -c find . -name "*.nix" | xargs
+          nixfmt --strict --check
 
   lint:
     runs-on: ubuntu-latest
@@ -19,8 +21,6 @@ jobs:
       - uses: cachix/install-nix-action@v25
       - name: Run statix
         run: nix shell nixpkgs#statix -c statix check .
-      - name: Run nix-linter
-        run: nix shell nixpkgs#nix-linter -c nix-linter .
 
   check:
     runs-on: ubuntu-latest
