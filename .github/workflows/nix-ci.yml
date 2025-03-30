@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: .github/actions/setup-nix
+      - uses: ./.github/actions/setup-nix
       - name: Check Formatting
         run:
           nix shell nixpkgs#nixfmt-rfc-style -c find . -name "*.nix" -exec
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: .github/actions/setup-nix
+      - uses: ./.github/actions/setup-nix
       - name: Run statix
         run: nix shell nixpkgs#statix -c statix check .
 
@@ -26,6 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: .github/actions/setup-nix
+      - uses: ./.github/actions/setup-nix
       - name: Run nix flake check
         run: nix flake check
