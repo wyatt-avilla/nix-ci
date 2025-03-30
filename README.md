@@ -6,6 +6,8 @@ checks via [nixfmt](https://github.com/NixOS/nixfmt) and a buld check with
 
 ## Example usage
 
+### GitHub Action
+
 ```yml
 name: Nix CI
 
@@ -18,4 +20,16 @@ on:
 jobs:
   shared:
     uses: wyatt-avilla/nix-ci/.github/workflows/nix-ci.yml@main
+```
+
+### Precommit hook
+
+```yml
+repos:
+  - repo: https://github.com/wyatt-avilla/nix-ci
+    rev: main
+    hooks:
+      - id: nixfmt
+      - id: statix
+      - id: nix-flake-check
 ```
