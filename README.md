@@ -1,7 +1,7 @@
 # Nix CI
 
 Runs linting via [statix](https://github.com/oppiliappan/statix), formatting
-checks via [nixfmt](https://github.com/NixOS/nixfmt) and a buld check with
+checks via [nixfmt](https://github.com/NixOS/nixfmt) and a build check with
 `nix flake check`
 
 ## Example usage
