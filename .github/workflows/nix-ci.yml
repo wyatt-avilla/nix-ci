@@ -2,8 +2,15 @@ name: Nix CI
 
 on:
   workflow_call:
+    inputs:
+      use_secret:
+        description: "Whether to use the secret"
+        required: false
+        type: boolean
+        default: false
     secrets:
-      deploy_key:
+      CI_DEPLOY_KEY:
+        description: "Optional SSH deploy key"
         required: false
 
 jobs:
@@ -41,10 +48,10 @@ jobs:
           purge-created: 0
           purge-primary-key: never
       - name: Conditionally set up SSH deploy key
-        if: ${{ secrets.deploy_key != '' }}
+        if: ${{ inputs.use_secret == true }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.deploy_key }}" > ~/.ssh/id_ed25519
+          echo "${{ secrets.CI_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
           git config --global url."git@github.com:".insteadOf "https://github.com/"
