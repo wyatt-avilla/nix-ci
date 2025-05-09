@@ -2,9 +2,9 @@ name: Nix CI
 
 on:
   workflow_call:
-  secrets:
-    deploy_key:
-      required: false
+    secrets:
+      deploy_key:
+        required: false
 
 jobs:
   format:
