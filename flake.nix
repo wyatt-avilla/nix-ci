@@ -22,7 +22,7 @@
           pkgs.runCommandLocal "check-formatting"
             {
               buildInputs = [
-                pkgs.nixfmt-rfc-style
+                pkgs.nixfmt
                 pkgs.fd
               ];
             }
@@ -94,7 +94,7 @@
             packages =
               with pkgs;
               [
-                nixfmt-rfc-style
+                nixfmt
                 statix
                 deadnix
                 fd
@@ -125,7 +125,7 @@
           check-tools = pkgs.buildEnv {
             name = "nix-check-tools";
             paths = with pkgs; [
-              nixfmt-rfc-style
+              nixfmt
               statix
               deadnix
               fd

@@ -1,7 +1,7 @@
 - id: nixfmt
   name: Nix Format Check
   entry: |
-    nix shell nixpkgs#nixfmt-rfc-style -c sh -c 'find . -name "*.nix" -exec nixfmt --strict --check {} +'
+    nix shell nixpkgs#nixfmt -c sh -c 'find . -name "*.nix" -exec nixfmt --strict --check {} +'
   language: system
   files: \.nix$
 
