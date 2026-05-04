@@ -2,12 +2,54 @@
   description = "Reusable Nix project checks";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    git-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      git-hooks,
+      nixpkgs,
+      treefmt-nix,
+    }:
     let
+      inherit (nixpkgs) lib;
+      defaultTreefmtConfig =
+        { config, lib, ... }:
+        let
+          cfg = config.nix-ci.lib;
+        in
+        {
+          options.nix-ci.lib.enableFormatting = lib.mkEnableOption "the default nix-ci formatters";
+
+          config = lib.mkIf cfg.enableFormatting {
+            projectRootFile = lib.mkDefault "flake.nix";
+
+            programs = {
+              nixfmt.enable = lib.mkDefault true;
+              prettier = {
+                enable = lib.mkDefault true;
+                includes = lib.mkOverride 900 [
+                  "*.md"
+                  "*.mdx"
+                  "*.markdown"
+                  "*.yaml"
+                  "*.yml"
+                ];
+              };
+            };
+          };
+        };
       forAllSystems = nixpkgs.lib.genAttrs [
         "x86_64-linux"
         "aarch64-linux"
@@ -17,101 +59,121 @@
     in
     {
       lib = {
-        mkFormattingCheck =
-          { pkgs, src }:
-          pkgs.runCommandLocal "check-formatting"
-            {
-              buildInputs = [
-                pkgs.nixfmt
-                pkgs.fd
-              ];
-            }
-            ''
-              cd ${src}
+        inherit defaultTreefmtConfig;
 
-              echo "Checking Nix file formatting..."
-              format_errors=0
+        enableFormatting = {
+          nix-ci.lib.enableFormatting = true;
+        };
 
-              for file in $(fd -e nix . --type f); do
-                echo "Checking $file..."
-                
-                if ! nixfmt --check "$file" 2>/dev/null; then
-                  echo "❌ $file is not properly formatted"
-                  format_errors=$((format_errors + 1))
-                else
-                  echo "✅ $file is properly formatted"
-                fi
-              done
+        mkTreefmt =
+          {
+            pkgs,
+            treefmtConfig ? { },
+          }:
+          treefmt-nix.lib.evalModule pkgs {
+            imports = [
+              self.lib.defaultTreefmtConfig
+              { nix-ci.lib.enableFormatting = lib.mkDefault true; }
+              treefmtConfig
+            ];
+          };
 
-              if [ $format_errors -eq 0 ]; then
-                echo "All files are properly formatted!"
-                mkdir $out
-              else
-                echo "Found $format_errors formatting issues"
-                echo "Run 'nixfmt **/*.nix' to fix formatting issues"
-                exit 1
-              fi
-            '';
+        mkPreCommitCheck =
+          {
+            pkgs,
+            src,
+            treefmtConfig ? { },
+            treefmt ? self.lib.mkTreefmt { inherit pkgs treefmtConfig; },
+            hooks ? { },
+            tools ? { inherit (pkgs) deadnix statix; },
+            imports ? [ ],
+          }:
+          let
+            inherit (pkgs.stdenv.hostPlatform) system;
+            defaultHooks = {
+              deadnix.enable = true;
+              statix.enable = true;
 
-        mkLintingCheck =
-          { pkgs, src }:
-          pkgs.runCommandLocal "check-linting" { buildInputs = [ pkgs.statix ]; } ''
-            cd ${src}
+              treefmt = {
+                enable = true;
+                packageOverrides.treefmt = treefmt.config.build.wrapper;
+              };
+            };
+          in
+          git-hooks.lib.${system}.run {
+            inherit imports src tools;
+            hooks = lib.recursiveUpdate defaultHooks hooks;
+          };
 
-            echo "Running statix linter..."
-            if statix check .; then
-              echo "✅ No linting issues found"
-              mkdir $out
-            else
-              echo "❌ Linting issues found"
-              echo "Run 'statix fix .' to fix some issues automatically"
-              exit 1
-            fi
-          '';
+        mkChecks =
+          {
+            pkgs,
+            src,
+            treefmtConfig ? { },
+            treefmt ? self.lib.mkTreefmt { inherit pkgs treefmtConfig; },
+            hooks ? { },
+            tools ? { inherit (pkgs) deadnix statix; },
+            imports ? [ ],
+          }:
+          {
+            formatting = treefmt.config.build.check src;
+            pre-commit-check = self.lib.mkPreCommitCheck {
+              inherit
+                hooks
+                imports
+                pkgs
+                src
+                tools
+                treefmt
+                treefmtConfig
+                ;
+            };
+          };
 
-        mkDeadCodeCheck =
-          { pkgs, src }:
-          pkgs.runCommandLocal "check-dead-code" { buildInputs = [ pkgs.deadnix ]; } ''
-            cd ${src}
-
-            echo "Checking for dead code..."
-            if deadnix .; then
-              echo "✅ No dead code found"
-              mkdir $out
-            else
-              echo "❌ Dead code found"
-              echo "Run 'deadnix --edit .' to remove dead code"
-              exit 1
-            fi
-          '';
+        mkProject =
+          {
+            pkgs,
+            src,
+            treefmtConfig ? { },
+            hooks ? { },
+            tools ? { inherit (pkgs) deadnix statix; },
+            imports ? [ ],
+            extraPackages ? [ ],
+          }:
+          let
+            treefmt = self.lib.mkTreefmt { inherit pkgs treefmtConfig; };
+            checks = self.lib.mkChecks {
+              inherit
+                hooks
+                imports
+                pkgs
+                src
+                tools
+                treefmt
+                treefmtConfig
+                ;
+            };
+          in
+          {
+            formatter = treefmt.config.build.wrapper;
+            inherit checks;
+            devShell = self.lib.mkCheckDevShell {
+              inherit extraPackages pkgs;
+              preCommitCheck = checks.pre-commit-check;
+            };
+          };
 
         mkCheckDevShell =
           {
             pkgs,
             extraPackages ? [ ],
+            preCommitCheck ? self.checks.${pkgs.stdenv.hostPlatform.system}.pre-commit-check,
           }:
           pkgs.mkShell {
-            packages =
-              with pkgs;
-              [
-                nixfmt
-                statix
-                deadnix
-                fd
-              ]
-              ++ extraPackages;
+            packages = preCommitCheck.enabledPackages ++ extraPackages;
 
             shellHook = ''
-              echo "Nix project check tools available:"
-              echo "  nixfmt **/*.nix     - Format all Nix files"
-              echo "  statix check .      - Run linter"
-              echo "  statix fix .        - Auto-fix linting issues"
-              echo "  deadnix --edit .    - Remove dead code"
-              echo ""
-              echo "Available flake checks:"
-              echo "  nix flake check .#formatting"
-              echo "  nix flake check .#linting"
-              echo "  nix flake check .#eval-check"
+              ${preCommitCheck.shellHook}
             '';
           };
       };
@@ -124,14 +186,17 @@
         {
           check-tools = pkgs.buildEnv {
             name = "nix-check-tools";
-            paths = with pkgs; [
-              nixfmt
-              statix
-              deadnix
-              fd
-            ];
+            paths = self.checks.${system}.pre-commit-check.enabledPackages ++ [ self.formatter.${system} ];
           };
         }
+      );
+
+      formatter = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        (self.lib.mkTreefmt { inherit pkgs; }).config.build.wrapper
       );
 
       devShells = forAllSystems (
@@ -149,21 +214,9 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
         in
-        {
-          formatting = self.lib.mkFormattingCheck {
-            src = self;
-            inherit pkgs;
-          };
-
-          linting = self.lib.mkLintingCheck {
-            src = self;
-            inherit pkgs;
-          };
-
-          dead-code = self.lib.mkDeadCodeCheck {
-            src = self;
-            inherit pkgs;
-          };
+        self.lib.mkChecks {
+          inherit pkgs;
+          src = self;
         }
       );
     };

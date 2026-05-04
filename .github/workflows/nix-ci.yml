@@ -1,5 +1,8 @@
 name: Nix CI
 
+permissions:
+  contents: read
+
 on:
   workflow_call:
     inputs:
@@ -17,30 +20,33 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: nixbuild/nix-quick-install-action@v32
+      - uses: actions/checkout@v6
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ github.token }}
       - name: Check Formatting
-        run:
-          nix shell nixpkgs#nixfmt -c find . -name "*.nix" -exec
-          nixfmt --strict --check {} +
+        run: nix fmt -- --fail-on-change
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: nixbuild/nix-quick-install-action@v32
-      - name: Run statix
-        run: nix shell nixpkgs#statix -c statix check .
+      - uses: actions/checkout@v6
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ github.token }}
+      - name: Run pre-commit hooks
+        run: nix develop -c pre-commit run --all-files
 
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: nixbuild/nix-quick-install-action@v32
+      - uses: actions/checkout@v6
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ github.token }}
       - uses: nix-community/cache-nix-action@v6
         with:
-          primary-key:
-            nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 2G
           purge: true
